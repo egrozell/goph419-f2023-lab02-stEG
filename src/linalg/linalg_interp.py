@@ -1,6 +1,6 @@
 import numpy as np
 
-def gauss_iter_solve(A,b,x0=None,tol,alg= 'seidel'):
+def gauss_iter_solve(A,b,x0=None,tol= 1e-8,alg= 'seidel'):
     """
     Parameters
     -------------------------------------------------------
@@ -26,14 +26,14 @@ def gauss_iter_solve(A,b,x0=None,tol,alg= 'seidel'):
         Solution hasn't converged after set number of iterations
     """
 
-    A = np.array(A.dtype = float)
-    b = np.array(b.dtype = float)
+    A = np.array(A,dtype=float)
+    b = np.array(b,dtype=float)
 
-    if not (n := a.shape[0]) == (m := A.shape[1]):
+    if not (n := A.shape[0]) == (m := A.shape[1]):
         raise ValueError("A's rows {n} and columns {m} are not equal in size")
     if not (dimA := len(A.shape)) == 2:
         raise ValueError("A's is {dimA} dimension but needs to be 2D")
-    if not (dimb := len(b.shape)) == 2 or 1:
+    if not (dimb := len(b.shape)) == (2 or 1):
         raise ValueError("b's is {dimb} dimension but needs to be 1D or 2D")
 
     n_b = b.shape[0]
@@ -58,7 +58,7 @@ def gauss_iter_solve(A,b,x0=None,tol,alg= 'seidel'):
     i = 1
     max_i = 100
 
-    Adiag = np.diag(np.diagA))
+    Adiag = np.diag(np.diag(A))
     Adiaginv = np.linalg.inv(Adiag)
     A0 = A - Adiag
     A0st = Adiaginv @ A0
@@ -88,7 +88,7 @@ def gauss_iter_solve(A,b,x0=None,tol,alg= 'seidel'):
         raise ValueError('alg must be either jacobi or seidel')
     return x0
 
-def spline_funtion(xd,yd,order = 3):
+def spline_function(xd,yd,order = 3):
     """
     Generates a spline function given two vectors x and y
 
@@ -102,6 +102,83 @@ def spline_funtion(xd,yd,order = 3):
 
     Returns
     -------------------------------------------------------
+    function that take one parameter which is a float or array lik float and returns interpolated y value(s)
+
+    Raises
+    -------------------------------------------------------
+    Value Errors:
+        # of independent variable and independ variable are not the same
+        xd array contains repeated values
+        xd values are not in increasing order
 
     """
-    pass
+    xd = np.array(xd,dtype=float)
+    yd = np.array(yd,dtype=float)
+
+    if len(xd) != len(yd):
+        raise ValueError('the # of independent variable and independ variable are not the same')
+    xd_unique = np.unique(xd)
+    if len(xd_unique) != len(xd):
+        raise ValueError('xd array contains repeated values')
+    if (all (xd[i] <= xd[i-1] for i in range (len(xd)-1))):
+        raise ValueError('xd values are not in increasing order')
+
+    dx = np.diff(xd)
+    dy = np.diff(yd)
+    dy_dx = dy/dx
+
+    if order == 1:
+        def s1(x):
+            a = yd[:-1]
+            b = dy_dx[:-1]
+            for n in x:
+                k = np.array([np.nonzero(xd<=n)[0][0]-1 for n in x])
+                k = np.where(k<0,0,k)
+                y = a[k-1] + b[k-1]*(x-xd[k-1])
+            return y
+        return s1
+    elif order == 2:
+        def s2(x):
+            num = xd.shape[0]
+            right = np.zeros(num-1)
+            right[1:] = np.diff(dy_dx, axis=0)
+            num = len(xd)
+            A = np.zeros((num-1,num-1))
+            A[0,0:2] = [1, -1]
+            A[1:,:-1] += np.diag(dx[:-1])
+            A[1:,1:] += np.diag(dx[1:])
+            c = np.linalg.solve(A,right)
+            b = dy - (c * dx)
+            a = yd[:-1]
+            for m in x:
+                k = np.array([np.nonzero(xd>=m)[0][0]-1 for m in x])
+                k = np.where(k<0,0,k)
+                y = a[k] + b[k] * (x-xd[k]) + c[k] * (x - xd[k])**2
+                return y
+        return s2
+    elif order ==3:
+        def s3(x):
+            num = xd.shape[0]
+            diff_matrix = np.diff(dy_dx)
+            right = np.zeros(num)
+            right[1:-1] = 3 * diff_matrix
+            num = len(xd)
+            A = np.zeros((num,num))
+            A[1,0] = dx[0]
+            A[-2,-1] = dx[-1]
+            A[0,:3] = [-dx[1], (dx[0]+dx[1]), -dx[0]]
+            A[-1,-3:] = [-dx[-1], (dx[-1]+dx[-2]), -dx[-2]]
+            A[1:-1,:-2] += np.diag(dx[:-1])
+            A[1:-1,1:-1] +=np.diag(2*(dx[:-1]+dx[1:]))
+            A[1:-1,2:] += np.diag(dx[1:])
+
+            c = np.linalg.solve(A,right)
+            d = np.diff(c)/(dx *3)
+            b = dy_dx - dx * ( c[:-1] + c[1:] * 2)/3
+            k = np.array([np.nonzero(xd>=n)[0][0]-1 for n in x])
+            k = np.where(k<0,0,k)
+            y = np.array([(yd[k]+ b[k] * (n -xd[k])+ c[k] * (n - xd[k])**2+ d[k] * (n - xd[k])**3) for k, n in zip(k, x)])
+            return y
+        return s3
+    else:
+        raise ValueError('order is not 1, 2, or 3')
