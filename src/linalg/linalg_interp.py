@@ -102,7 +102,7 @@ def spline_function(xd,yd,order = 3):
 
     Returns
     -------------------------------------------------------
-    function that take one parameter which is a float or array lik float and returns interpolated y value(s)
+    function that take one parameter which is a float or array like float and returns interpolated y value(s)
 
     Raises
     -------------------------------------------------------
